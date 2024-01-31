@@ -5,6 +5,7 @@
 #include "range_test.h"
 #include "range_live.h"
 #include "oscilloscope.h"
+#include "button_test.h"
 #include "text.h"
 #include "colors.h"
 #include "input.h"
@@ -18,6 +19,7 @@ enum Screen
     SCR_RANGE_RESULT,
     SCR_LIVE,
     SCR_OSCOPE,
+    SCR_BTN,
 };
 
 void reset_handler(exception_t *ex)
@@ -71,6 +73,7 @@ int main(void)
                     "Display last range result",
                     "Live range display",
                     "Oscilloscope display",
+                    "Button display",
                     "Help",
                     "About",
                 };
@@ -119,9 +122,12 @@ int main(void)
                         current_screen = SCR_OSCOPE;
                         break;
                     case 6:
-                        current_screen = SCR_HELP;
+                        current_screen = SCR_BTN;
                         break;
                     case 7:
+                        current_screen = SCR_HELP;
+                        break;
+                    case 8:
                         current_screen = SCR_ABOUT;
                         break;
                     }
@@ -376,11 +382,17 @@ int main(void)
         case SCR_RANGE_RESULT:
             display_angles(result, sample_count);
             current_screen = SCR_MAIN_MENU;
+            break;
         case SCR_LIVE:
             display_live_ranges();
             current_screen = SCR_MAIN_MENU;
+            break;
         case SCR_OSCOPE:
             display_oscilloscope();
+            current_screen = SCR_MAIN_MENU;
+            break;
+        case SCR_BTN:
+            display_buttons();
             current_screen = SCR_MAIN_MENU;
         }
     }

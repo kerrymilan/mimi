@@ -67,6 +67,17 @@ const char *example_names[] =
     "Ideal Horipad Mini example",
 };
 
+enum View
+{
+    VIEW_NONE,
+    VIEW_NOTCH_CARD,
+    VIEW_NOTCH_DIAG,
+    VIEW_NOTCH_BOTH,
+
+    VIEW_MAX,
+};
+
+
 void draw_stick_angles(display_context_t ctx, struct StickAngles a, uint32_t color, int zoomout, int x)
 {
     if (zoomout) {
@@ -80,14 +91,98 @@ void draw_stick_angles(display_context_t ctx, struct StickAngles a, uint32_t col
     for (int i = 0; i < 8; i++) {
         int j = (i + 1) % 8;
         draw_aa_line(
-            ctx, 
+            ctx,
               x + v[i].x,
-            120 - v[i].y, 
+            120 - v[i].y,
               x + v[j].x,
             120 - v[j].y,
             color);
     }
 }
+
+uint32_t get_offset_color(int a)
+{
+    if (a <= 1) {
+        return graphics_make_color(0, 255, 64, 255);
+    } else if (a <= 3) {
+        return graphics_make_color(192, 255, 0, 255);
+    } else if (a <= 5) {
+        return graphics_make_color(255, 128, 64, 255);
+    } else {
+        return graphics_make_color(255, 64, 0, 255);
+    }
+}
+
+
+void draw_diag_compare(display_context_t ctx, struct StickAngles a, int zoomout, int x)
+{
+    if (zoomout) {
+        for (int i = 0; i < 16; i++) {
+            a.values[i] = (a.values[i] * 3) / 4;
+        }
+    }
+
+    struct Vec2 *v = (struct Vec2*)&a;
+
+    for (int i = 1; i < 8; i += 2) {
+        int j = (i + 2) % 8;
+
+        uint32_t color;
+        if (i % 4 == 1) {
+            color = get_offset_color(abs(v[i].x-v[j].x));
+        } else {
+            color = get_offset_color(abs(v[i].y-v[j].y));
+        }
+
+        graphics_draw_line(
+            ctx,
+              x + v[i].x,
+            120 - v[i].y,
+              x + v[j].x,
+            120 - v[j].y,
+            color);
+
+        color = get_offset_color(abs(v[i].x)-abs(v[i].y));
+        graphics_draw_line(
+            ctx,
+              x,
+              x,
+              x + v[i].x,
+              x - v[i].y,
+              color);
+    }
+}
+
+void draw_cardinal_compare(display_context_t ctx, struct StickAngles a, int zoomout, int x)
+{
+    if (zoomout) {
+        for (int i = 0; i < 16; i++) {
+            a.values[i] = (a.values[i] * 3) / 4;
+        }
+    }
+
+    struct Vec2 *v = (struct Vec2*)&a;
+
+    int offset = 8;
+    for (int i = 0; i < 8; i += 2) {
+        offset = abs(offset);
+        uint32_t color;
+        if (abs(v[i].x) > abs(v[i].y)) { // Horizontal axis
+            if (v[i].x < 0) offset = offset * -1;
+            color = get_offset_color(abs(v[i].y));
+            draw_aa_line(ctx, offset+x+v[i].x,   x-v[i].y, offset+x+v[i].x,   x,        color);
+            draw_aa_line(ctx, offset+x+v[i].x+2, x-v[i].y, offset+x+v[i].x-2, x-v[i].y, color);
+            draw_aa_line(ctx, offset+x+v[i].x+2, x,        offset+x+v[i].x-2, x,        color);
+        } else { // Vertical axis
+            if (v[i].y > 0) offset = offset * -1;
+            color = get_offset_color(abs(v[i].x));
+            draw_aa_line(ctx, x+v[i].x,   offset+x-v[i].y,   x,          offset+x-v[i].y,   color);
+            draw_aa_line(ctx, x+v[i].x,   offset+x-v[i].y-2, x+v[i].x,   offset+x-v[i].y+2, color);
+            draw_aa_line(ctx, x,          offset+x-v[i].y-2, x,          offset+x-v[i].y+2, color);
+        }
+    }
+}
+
 
 void draw_center_cross(display_context_t ctx, int x_origin)
 {
@@ -148,7 +243,7 @@ void print_stick_angles(display_context_t ctx, struct StickAngles a)
     snprintf(buf, sizeof(buf),
         "up   \n"
         "down \n"
-        "left \n" 
+        "left \n"
         "right\n\n"
         "UR\n\n\n"
         "UL\n\n\n"
@@ -230,7 +325,7 @@ void test_angles(struct StickAngles *a, int testnum)
     static const char *gfx[] =
     {
         "/gfx/stick_neutral.sprite",
-        "/gfx/stick_0.sprite", 
+        "/gfx/stick_0.sprite",
         "/gfx/stick_1.sprite",
         "/gfx/stick_2.sprite",
         "/gfx/stick_3.sprite",
@@ -366,12 +461,13 @@ int should_enable_zoomout(struct StickAngles a[], int n) {
     }
 
     return 0;
-} 
+}
 
 void display_angles(struct StickAngles a[], int sample_count)
 {
     enum Comparison current_comparison = COMP_NONE;
     display_context_t ctx;
+    int current_view = 0;
     int current_measurement = 0;
     int current_example = 0;
 
@@ -412,9 +508,20 @@ void display_angles(struct StickAngles a[], int sample_count)
             c_current = c_blue;
         }
 
+        if (current_view > VIEW_NONE) {
+            if (current_view == VIEW_NOTCH_DIAG || current_view == VIEW_NOTCH_BOTH) {
+                c_current = c_gray;
+                draw_diag_compare(ctx, *current, zoomout, x_origin);
+            }
+
+            if (current_view == VIEW_NOTCH_CARD || current_view == VIEW_NOTCH_BOTH) {
+                draw_cardinal_compare(ctx, *current, zoomout, x_origin);
+            }
+        }
+
         draw_stick_angles(ctx, *current, c_current, zoomout, x_origin);
         print_stick_angles(ctx, *current);
-        
+
         graphics_set_color(COLOR_FOREGROUND, 0);
         int y = 15 + 10*17;
 
@@ -429,7 +536,7 @@ void display_angles(struct StickAngles a[], int sample_count)
         } else {
             text_draw(ctx, 270, y, "tests", ALIGN_LEFT);
         }
-        
+
         y += 10;
         if (sample_count > 1) {
             float sd = find_standard_deviation(a, sample_count);
@@ -444,7 +551,7 @@ void display_angles(struct StickAngles a[], int sample_count)
 
         if (sample_count == 1) {
             current_measurement = 1;
-        } 
+        }
         if (current_example == 0) {
             if (current_measurement > 0) {
                 snprintf(buf, sizeof(buf), "Test %d%s",
@@ -517,6 +624,19 @@ void display_angles(struct StickAngles a[], int sample_count)
             current_measurement++;
             if (current_measurement > sample_count) {
                 current_measurement = 0;
+            }
+        }
+
+        if (cdata.c[0].C_left) {
+            if (current_view == 0) {
+                current_view = VIEW_MAX - 1;
+            } else {
+                current_view--;
+            }
+        } else if (cdata.c[0].C_right) {
+            current_view++;
+            if (current_view >= VIEW_MAX) {
+                current_view = 0;
             }
         }
 

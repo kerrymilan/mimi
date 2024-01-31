@@ -3,3 +3,5 @@ build/
 *.z64
 fs/gfx/*.sprite
 .*.sw*
+node_modules/
+package-lock.json
