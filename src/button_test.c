@@ -13,7 +13,7 @@
 static const char *btn_gfx[] =
 {
     "/gfx/btn_a.sprite",
-    "/gfx/btn_b.sprite", 
+    "/gfx/btn_b.sprite",
     "/gfx/btn_s.sprite",
     "/gfx/btn_l.sprite",
     "/gfx/btn_r.sprite",
@@ -31,8 +31,8 @@ static const char *btn_gfx[] =
 static int exit_seq[] = {0, 2, 4, 5};
 
 void draw_line(
-    display_context_t ctx, 
-    uint32_t color, 
+    display_context_t ctx,
+    uint32_t color,
     int x_offset,
     int y_offset,
     int y_height)
@@ -45,6 +45,12 @@ void draw_line(
         y_offset + y_height,
         color
     );
+}
+
+int marker = 0;
+void set_marker()
+{
+    marker = 1;
 }
 
 void display_buttons() {
@@ -107,6 +113,10 @@ void display_buttons() {
     text_set_line_height(line_height);
     display_context_t ctx;
 
+    timer_init();
+    new_timer(TIMER_TICKS(1000000), TF_CONTINUOUS, set_marker);
+
+    int fps = 0, last_fps = 0;
     for (;;) {
         while ((ctx = display_lock()) == 0) {}
         display_show(ctx);
@@ -123,9 +133,61 @@ void display_buttons() {
         controller_scan();
         struct controller_data cdata = get_keys_pressed();
 
+        char buf[128];
+        text_set_font(FONT_BOLD);
+        snprintf(buf, sizeof(buf), "Button tester");
+        text_draw(ctx, 160, 15, buf, ALIGN_CENTER);
+
+        snprintf(buf, sizeof(buf), "%3d", cdata.c[0].x);
+        text_draw(ctx, lbl_x_offset_col1, lbl_y_offset_row1, buf, ALIGN_RIGHT);
+
+        snprintf(buf, sizeof(buf), "%3d", cdata.c[0].y);
+        text_draw(ctx, lbl_x_offset_col2, lbl_y_offset_row1, buf, ALIGN_RIGHT);
+
+        text_set_font(FONT_MEDIUM);
+        snprintf(buf, sizeof(buf), "x");
+        text_draw(ctx, lbl_x_offset_col1 + 8, lbl_y_offset_row1, buf, ALIGN_LEFT);
+
+        snprintf(buf, sizeof(buf), "y");
+        text_draw(ctx, lbl_x_offset_col2 + 8, lbl_y_offset_row1, buf, ALIGN_LEFT);
+
+        text_set_font(FONT_MEDIUM);
+        text_draw(ctx, 16, lbl_y_offset_row2, "Exit: ", ALIGN_LEFT);
+        graphics_set_color(graphics_make_color(128, 128, 128, 255), 0);
+
+        fps++;
+        if (marker == 1) {
+            draw_line(ctx, c_gray, x_offset_col1, btn_y_offset_a, line_height * -1.2);
+            cdata.c[0].x = 1;
+            marker = 0;
+            last_fps = fps;
+
+            fps = 0;
+        } else {
+            cdata.c[0].x = 0;
+        }
+        char fps_buf[128];
+        snprintf(fps_buf, sizeof(fps_buf), "Rendering %d fps", last_fps);
+        text_draw(ctx, 320 - 16, lbl_y_offset_row2, fps_buf, ALIGN_RIGHT);
 
         for (int i = count; i > 0; i--) {
             history[i] = history[i - 1];
+            if (history[i].x == 1) {
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_a, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_b, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_start, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_c_up, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_c_down, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_c_left, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col1 - i, btn_y_offset_c_right, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_r, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_l, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_z, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_up, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_down, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_left, line_height * -1.2);
+                draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_right, line_height * -1.2);
+            }
             draw_line(ctx, c_blue, x_offset_col1 - i, btn_y_offset_a, history[i].A * line_height * -1);
             draw_line(ctx, c_green, x_offset_col1 - i, btn_y_offset_b, history[i].B * line_height * -1);
             draw_line(ctx, c_red, x_offset_col1 - i, btn_y_offset_start, history[i].start * line_height * -1);
@@ -140,6 +202,7 @@ void display_buttons() {
             draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_down, history[i].down * line_height * -1);
             draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_left, history[i].left * line_height * -1);
             draw_line(ctx, c_gray, x_offset_col2 - i, btn_y_offset_d_right, history[i].right * line_height * -1);
+
         }
 
         history[0] = cdata.c[0];
@@ -178,29 +241,6 @@ void display_buttons() {
         graphics_draw_sprite(ctx, btn_x_col2, sprite_y_offset + btn_y_offset_d_left, btn_sprites[12]);
         graphics_draw_sprite(ctx, btn_x_col2, sprite_y_offset + btn_y_offset_d_right, btn_sprites[13]);
 
-        char buf[128];
-        text_set_font(FONT_BOLD);
-        snprintf(buf, sizeof(buf), "Button tester");
-        text_draw(ctx, 160, 15, buf, ALIGN_CENTER);
-
-        snprintf(buf, sizeof(buf), "%3d", cdata.c[0].x);
-        text_draw(ctx, lbl_x_offset_col1, lbl_y_offset_row1, buf, ALIGN_RIGHT);
-
-        snprintf(buf, sizeof(buf), "%3d", cdata.c[0].y);
-        text_draw(ctx, lbl_x_offset_col2, lbl_y_offset_row1, buf, ALIGN_RIGHT);
-
-        text_set_font(FONT_MEDIUM);
-        snprintf(buf, sizeof(buf), "x");
-        text_draw(ctx, lbl_x_offset_col1 + 8, lbl_y_offset_row1, buf, ALIGN_LEFT);
-
-        snprintf(buf, sizeof(buf), "y");
-        text_draw(ctx, lbl_x_offset_col2 + 8, lbl_y_offset_row1, buf, ALIGN_LEFT);
-        
-        text_set_font(FONT_MEDIUM);
-        text_draw(ctx, 16, lbl_y_offset_row2, "Exit: ", ALIGN_LEFT);
-        graphics_set_color(graphics_make_color(128, 128, 128, 255), 0);
-        text_draw(ctx, 320 - 16, lbl_y_offset_row2, REPO_URL, ALIGN_RIGHT);
-
         for (int i = 0; i < 4; i++) {
             graphics_draw_sprite(ctx, 42 + (i*10), lbl_y_offset_row2 + 2, btn_sprites[exit_seq[i]]);
         }
@@ -213,4 +253,5 @@ void display_buttons() {
     for (int i = 0; i < 14; i++) {
         free(btn_sprites[i]);
     }
+    timer_close();
 }
