@@ -49,6 +49,8 @@ $(FS): $(wildcard fs/*) $(wildcard gfx/*)
 	$(N64_ROOTDIR)/bin/mksprite 32 gfx/btn_r.png fs/gfx/btn_r.sprite
 	$(N64_ROOTDIR)/bin/mksprite 32 gfx/btn_s.png fs/gfx/btn_s.sprite
 	$(N64_ROOTDIR)/bin/mksprite 32 gfx/btn_z.png fs/gfx/btn_z.sprite
+	$(N64_ROOTDIR)/bin/mksprite 32 gfx/fail.png fs/gfx/fail.sprite
+	$(N64_ROOTDIR)/bin/mksprite 32 gfx/pass.png fs/gfx/pass.sprite
 	$(N64_MKDFS) $@ fs
 
 $(BUILD_DIR)/$(NAME).elf: $(OBJS)

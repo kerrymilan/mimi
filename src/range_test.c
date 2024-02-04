@@ -73,16 +73,21 @@ enum View
     VIEW_NOTCH_CARD,
     VIEW_NOTCH_DIAG,
     VIEW_NOTCH_BOTH,
+    VIEW_GRADE,
+    VIEW_GRADE_LENIENT,
 
     VIEW_MAX,
 };
 
 
-void draw_stick_angles(display_context_t ctx, struct StickAngles a, uint32_t color, int zoomout, int x)
+void draw_stick_angles(display_context_t ctx, struct StickAngles a, uint32_t color, int zoomout, int x, int y)
 {
     if (zoomout) {
+        int factor = 3;
+        if (zoomout == 2) factor = 2;
+
         for (int i = 0; i < 16; i++) {
-            a.values[i] = (a.values[i] * 3) / 4;
+            a.values[i] = (a.values[i] * factor) / 4;
         }
     }
 
@@ -93,9 +98,9 @@ void draw_stick_angles(display_context_t ctx, struct StickAngles a, uint32_t col
         draw_aa_line(
             ctx,
               x + v[i].x,
-            120 - v[i].y,
+            y - v[i].y,
               x + v[j].x,
-            120 - v[j].y,
+            y - v[j].y,
             color);
     }
 }
@@ -114,11 +119,14 @@ uint32_t get_offset_color(int a)
 }
 
 
-void draw_diag_compare(display_context_t ctx, struct StickAngles a, int zoomout, int x)
+void draw_diag_compare(display_context_t ctx, struct StickAngles a, int zoomout, int x, int y)
 {
+    int factor = 4;
     if (zoomout) {
+        factor = 3;
+        if (zoomout == 2) factor = 2;
         for (int i = 0; i < 16; i++) {
-            a.values[i] = (a.values[i] * 3) / 4;
+            a.values[i] = (a.values[i] * factor) / 4;
         }
     }
 
@@ -129,26 +137,28 @@ void draw_diag_compare(display_context_t ctx, struct StickAngles a, int zoomout,
 
         uint32_t color;
         if (i % 4 == 1) {
-            color = get_offset_color(abs(v[i].x-v[j].x));
+            int delta = abs(v[i].x-v[j].x) * 4 / factor;
+            color = get_offset_color(delta);
         } else {
-            color = get_offset_color(abs(v[i].y-v[j].y));
+            int delta = abs(v[i].y-v[j].y) * 4 / factor;
+            color = get_offset_color(delta);
         }
 
         graphics_draw_line(
             ctx,
-              x + v[i].x,
-            120 - v[i].y,
-              x + v[j].x,
-            120 - v[j].y,
+            x + v[i].x,
+            y - v[i].y,
+            x + v[j].x,
+            y - v[j].y,
             color);
 
         color = get_offset_color(abs(v[i].x)-abs(v[i].y));
         graphics_draw_line(
             ctx,
               x,
-              x,
+              y,
               x + v[i].x,
-              x - v[i].y,
+              y - v[i].y,
               color);
     }
 }
@@ -184,10 +194,10 @@ void draw_cardinal_compare(display_context_t ctx, struct StickAngles a, int zoom
 }
 
 
-void draw_center_cross(display_context_t ctx, int x_origin)
+void draw_center_cross(display_context_t ctx, int x_origin, int y_origin)
 {
     int x, y, offset;
-    y = 120;
+    y = y_origin;
     offset = x_origin - 120;
     for (x = offset; x < 240+offset; x++) {
         int i = smin(240 - abs(240 - (x-offset)*2), 120);
@@ -463,6 +473,221 @@ int should_enable_zoomout(struct StickAngles a[], int n) {
     return 0;
 }
 
+static sprite_t *test_sprites[] = {0, 0};
+
+static const char *test_gfx[] =
+{
+    "/gfx/pass.sprite",
+    "/gfx/fail.sprite",
+};
+
+void print_benchmark_grade(display_context_t ctx, struct StickAngles a, int lenient, float std_dev)
+{
+    int cardinal_range = 0,
+        cardinal_delta = 0,
+        cardinal_axes = 0,
+        cardinal_tests = 0,
+        diagonal_delta = 0,
+        diagonal_angles = 0,
+        diagonal_tests = 0,
+        consistency = 0,
+        consistency_tests = 0,
+        cardinal_min = 128,
+        cardinal_max = 0,
+        diagonal_min = 128,
+        diagonal_max = 0,
+        cardinal_range_threshold = 84,
+        cardinal_delta_threshold = 5,
+        cardinal_axes_threshold = 5,
+        diagonal_delta_threshold = 8,
+        diagonal_angles_min_threshold = 43,
+        diagonal_angles_max_threshold = 47;
+    float std_dev_max_threshold = 1.0;
+
+    if (lenient) {
+        int lenient_offset = 5;
+        cardinal_range_threshold -= lenient_offset;
+        cardinal_delta_threshold += lenient_offset;
+        cardinal_axes_threshold += lenient_offset;
+        diagonal_delta_threshold += lenient_offset;
+        diagonal_angles_min_threshold -= (lenient_offset / 2);
+        diagonal_angles_max_threshold += (lenient_offset / 2);
+        std_dev_max_threshold += (lenient_offset/10);
+    }
+
+    char buf[1024];
+    snprintf(buf, sizeof(buf),
+        "cardinal notches:\n"
+        "  values >= %d?\n"
+        "  values +/- %d?\n"
+        "  true to axis?\n"
+        "\n"
+        "diagonal notches:\n"
+        "  values +/- %d?\n"
+        "  angles %d-%d" SYMBOL_DEGREES "?\n"
+        "\n"
+        "consistency:\n"
+        "  std dev < %.1f?\n",
+        cardinal_range_threshold,
+        cardinal_delta_threshold,
+        diagonal_delta_threshold,
+        diagonal_angles_min_threshold,
+        diagonal_angles_max_threshold,
+        std_dev_max_threshold
+    );
+
+    int line_height = 16;
+
+    uint32_t c_gray = graphics_make_color(128, 128, 128, 255);
+    for (int x = 22; x < (line_height * 13); x += line_height) {
+        graphics_draw_line(
+            ctx,
+            20,
+            x,
+            140,
+            x,
+            c_gray);
+    }
+
+    graphics_draw_line(ctx, 20,  23,  20,  85,  c_gray);
+    graphics_draw_line(ctx, 119, 23,  119, 85,  c_gray);
+    graphics_draw_line(ctx, 140, 23,  140, 85,  c_gray);
+    graphics_draw_line(ctx, 20,  102, 20,  150, c_gray);
+    graphics_draw_line(ctx, 119, 102, 119, 150, c_gray);
+    graphics_draw_line(ctx, 140, 102, 140, 150, c_gray);
+    graphics_draw_line(ctx, 20,  166, 20,  198, c_gray);
+    graphics_draw_line(ctx, 119, 166, 119, 198, c_gray);
+    graphics_draw_line(ctx, 140, 166, 140, 198, c_gray);
+
+    text_set_font(FONT_MEDIUM);
+    text_set_line_height(line_height);
+    graphics_set_color(COLOR_FOREGROUND, 0);
+    text_draw(ctx, 24, 25, buf, ALIGN_LEFT);
+
+
+    struct Vec2 *v = (struct Vec2*)&a;
+    for (int i = 0; i < 8; i++) {
+        if (i % 2 == 0) {                   // Cardinal notch
+            if (i % 4 == 0) {               // U/D notch
+                if (abs(v[i].y) < cardinal_range_threshold) { // Check range
+                    cardinal_range = 1;
+                }
+
+                if (abs(v[i].y) < cardinal_min) {
+                    cardinal_min = abs(v[i].y);
+                }
+
+                if (abs(v[i].y) > cardinal_max) {
+                    cardinal_max = abs(v[i].y);
+                }
+
+                if (abs(v[i].x) >= cardinal_axes_threshold) { // True to axis?
+                    cardinal_axes = 1;
+                }
+            } else {                        // L/R notch
+                if (abs(v[i].x) < cardinal_range_threshold) { // Check range
+                    cardinal_range = 1;
+                }
+
+                if (abs(v[i].x) < cardinal_min) {
+                    cardinal_min = abs(v[i].x);
+                }
+
+                if (abs(v[i].x) > cardinal_max) {
+                    cardinal_max = abs(v[i].x);
+                }
+
+                if (abs(v[i].y) >= cardinal_axes_threshold) { // True to axis?
+                    cardinal_axes = 1;
+                }
+            }
+        } else {                            // Diagonal notch
+            if (abs(v[i].x < diagonal_min)) {
+                diagonal_min = abs(v[i].x);
+            }
+            if (abs(v[i].y < diagonal_min)) {
+                diagonal_min = abs(v[i].y);
+            }
+            if (abs(v[i].x > diagonal_max)) {
+                diagonal_max = abs(v[i].x);
+            }
+            if (abs(v[i].y > diagonal_max)) {
+                diagonal_max = abs(v[i].y);
+            }
+        }
+
+    }
+
+    if (cardinal_max - cardinal_min > cardinal_delta_threshold) {
+        cardinal_delta = 1;
+    }
+
+    if (diagonal_max - diagonal_min > diagonal_delta_threshold) {
+        diagonal_delta = 1;
+    }
+
+    int diagonals[] = {
+         a.ur.x,  a.ur.y,
+        -a.ul.x,  a.ul.y,
+         a.dr.x, -a.dr.y,
+        -a.dl.x, -a.dl.y,
+    };
+
+    float angles[] = {
+        get_angle(diagonals[0], diagonals[1]),
+        get_angle(diagonals[2], diagonals[3]),
+        get_angle(diagonals[4], diagonals[5]),
+        get_angle(diagonals[6], diagonals[7]),
+    };
+
+    for (int i = 0; i < 4; i++) {
+        if (angles[i] < diagonal_angles_min_threshold || angles[i] > diagonal_angles_max_threshold) {
+            diagonal_angles = 1;
+        }
+    }
+
+    if (std_dev > std_dev_max_threshold) {
+        consistency = 1;
+    }
+
+    if (cardinal_range + cardinal_delta + cardinal_axes > 0) {
+        cardinal_tests = 1;
+    } 
+
+    if (diagonal_delta + diagonal_angles > 0) {
+        diagonal_tests = 1;
+    }
+
+    if (consistency > 0) {
+        consistency_tests = 1;
+    }
+
+
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  0), test_sprites[cardinal_tests]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  1), test_sprites[cardinal_range]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  2), test_sprites[cardinal_delta]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  3), test_sprites[cardinal_axes]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  5), test_sprites[diagonal_tests]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  6), test_sprites[diagonal_delta]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  7), test_sprites[diagonal_angles]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height *  9), test_sprites[consistency_tests]);
+    graphics_draw_sprite(ctx, 124, 25 + (line_height * 10), test_sprites[consistency]);
+
+    graphics_set_color(COLOR_FOREGROUND, 0);
+    text_set_line_height(10);
+
+    uint32_t c_blue = graphics_make_color(0, 192, 255, 255);
+    uint32_t c_green = graphics_make_color(0, 255, 0, 255);
+    int zoomout = 2,
+        x_origin = 194,
+        y_origin = 60;
+    draw_stick_angles(ctx, perfect_n64, c_green, zoomout, x_origin,  y_origin);
+    draw_stick_angles(ctx, a, c_blue, zoomout, x_origin, y_origin);
+    y_origin = 160;
+    draw_diag_compare(ctx, a, zoomout, x_origin, y_origin);
+
+}
+
 void display_angles(struct StickAngles a[], int sample_count)
 {
     enum Comparison current_comparison = COMP_NONE;
@@ -479,7 +704,17 @@ void display_angles(struct StickAngles a[], int sample_count)
 
     struct StickAngles median = find_median(a, sample_count);
     int zoomout = should_enable_zoomout(a, sample_count);
-    int x_origin = 120;
+    int x_origin = 120,
+        y_origin = 120;
+
+
+    for (int i = 0; i < 2; i++) {
+        int f = dfs_open(test_gfx[i]);
+        int size = dfs_size(f);
+        test_sprites[i] = malloc(size);
+        dfs_read(test_sprites[i], size, 1, f);
+        dfs_close(f);
+    }
 
     text_set_line_height(10);
     for (;;) {
@@ -487,41 +722,55 @@ void display_angles(struct StickAngles a[], int sample_count)
 
         graphics_fill_screen(ctx, COLOR_BACKGROUND);
 
-        draw_center_cross(ctx, x_origin);
-        for (int i = 0; i < sample_count; i++) {
-            draw_stick_angles(ctx, a[i], c_gray, zoomout, x_origin);
-        }
-        if (comparisons[current_comparison]) {
-            draw_stick_angles(ctx, *comparisons[current_comparison], c_green, zoomout, x_origin);
-        }
-
         struct StickAngles *current;
         if (current_measurement > 0) {
             current = &a[current_measurement - 1];
         } else {
             current = &median;
         }
-        if (current_example > 0) {
-            current = comparisons[current_example];
-            c_current = c_magenta;
-        } else {
-            c_current = c_blue;
-        }
 
-        if (current_view > VIEW_NONE) {
-            if (current_view == VIEW_NOTCH_DIAG || current_view == VIEW_NOTCH_BOTH) {
-                c_current = c_gray;
-                draw_diag_compare(ctx, *current, zoomout, x_origin);
+        if (current_view != VIEW_GRADE && current_view != VIEW_GRADE_LENIENT) {
+            draw_center_cross(ctx, x_origin, y_origin);
+            for (int i = 0; i < sample_count; i++) {
+                draw_stick_angles(ctx, a[i], c_gray, zoomout, x_origin, y_origin);
+            }
+            if (comparisons[current_comparison]) {
+                draw_stick_angles(ctx, *comparisons[current_comparison], c_green, zoomout, x_origin, y_origin);
             }
 
-            if (current_view == VIEW_NOTCH_CARD || current_view == VIEW_NOTCH_BOTH) {
-                draw_cardinal_compare(ctx, *current, zoomout, x_origin);
+            if (current_example > 0) {
+                current = comparisons[current_example];
+                c_current = c_magenta;
+            } else {
+                c_current = c_blue;
+            }
+
+            if (current_view > VIEW_NONE) {
+                if (current_view == VIEW_NOTCH_DIAG || current_view == VIEW_NOTCH_BOTH) {
+                    c_current = c_gray;
+                    draw_diag_compare(ctx, *current, zoomout, x_origin, y_origin);
+                }
+
+                if (current_view == VIEW_NOTCH_CARD || current_view == VIEW_NOTCH_BOTH) {
+                    draw_cardinal_compare(ctx, *current, zoomout, x_origin);
+                }
+            }
+
+            draw_stick_angles(ctx, *current, c_current, zoomout, x_origin, y_origin);
+        } else if (current_view == VIEW_GRADE || current_view == VIEW_GRADE_LENIENT) {
+            float sd = 0;
+            if (sample_count > 1) {
+                sd = find_standard_deviation(a, sample_count);
+            }
+
+            if (current_view == VIEW_GRADE) {
+                print_benchmark_grade(ctx, *current, 0, sd);
+            } else {
+                print_benchmark_grade(ctx, *current, 1, sd);
             }
         }
 
-        draw_stick_angles(ctx, *current, c_current, zoomout, x_origin);
         print_stick_angles(ctx, *current);
-
         graphics_set_color(COLOR_FOREGROUND, 0);
         int y = 15 + 10*17;
 
@@ -549,28 +798,31 @@ void display_angles(struct StickAngles a[], int sample_count)
             text_draw(ctx, 270, y, "std dev", ALIGN_LEFT);
         }
 
-        if (sample_count == 1) {
-            current_measurement = 1;
-        }
-        if (current_example == 0) {
-            if (current_measurement > 0) {
-                snprintf(buf, sizeof(buf), "Test %d%s",
-                    current_measurement, comparison_names[current_comparison]);
-            } else {
-                snprintf(buf, sizeof(buf), "Median%s",
-                    comparison_names[current_comparison]);
+        
+        if (current_view != VIEW_GRADE && current_view != VIEW_GRADE_LENIENT) {
+            if (sample_count == 1) {
+                current_measurement = 1;
             }
-        } else {
-            if (current_comparison > 0) {
-                snprintf(buf, sizeof(buf), "Example%s",
-                    comparison_names[current_comparison]);
+            if (current_example == 0) {
+                if (current_measurement > 0) {
+                    snprintf(buf, sizeof(buf), "Test %d%s",
+                        current_measurement, comparison_names[current_comparison]);
+                } else {
+                    snprintf(buf, sizeof(buf), "Median%s",
+                        comparison_names[current_comparison]);
+                }
             } else {
-                snprintf(buf, sizeof(buf), "%s",
-                    example_names[current_example-1]);
+                if (current_comparison > 0) {
+                    snprintf(buf, sizeof(buf), "Example%s",
+                        comparison_names[current_comparison]);
+                } else {
+                    snprintf(buf, sizeof(buf), "%s",
+                        example_names[current_example-1]);
+                }
             }
-        }
 
-        text_draw(ctx, 120, 15, buf, ALIGN_CENTER);
+            text_draw(ctx, 120, 15, buf, ALIGN_CENTER);
+        }
 
         if (zoomout) {
             text_draw(ctx, 16, 213, "75\% scale", ALIGN_LEFT);
@@ -643,5 +895,9 @@ void display_angles(struct StickAngles a[], int sample_count)
         if (cdata.c[0].Z) {
             zoomout ^= 1;
         }
+    }
+
+    for (int i = 0; i < 2; i++) {
+        free(test_sprites[i]);
     }
 }

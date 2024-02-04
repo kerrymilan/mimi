@@ -98,14 +98,15 @@ void display_live_ranges() {
         snprintf(buf, sizeof(buf), "%3d\n%3d", v.x, v.y);
         text_draw(ctx, 282, 120 - line_height, buf, ALIGN_RIGHT);
 
-        draw_center_cross(ctx, 160);
+        draw_center_cross(ctx, 160, 120);
         if (current_comparison > 0) {
             draw_stick_angles(
                 ctx,
                 *live_comparisons[current_comparison],
                 comparison_color,
                 zoomout,
-                160
+                160,
+                120
             );
         }
 
