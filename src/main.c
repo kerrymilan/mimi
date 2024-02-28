@@ -4,6 +4,7 @@
 
 #include "range_test.h"
 #include "range_live.h"
+#include "range_live_benchmark.h"
 #include "oscilloscope.h"
 #include "button_test.h"
 #include "text.h"
@@ -18,6 +19,7 @@ enum Screen
     SCR_RANGE_TEST,
     SCR_RANGE_RESULT,
     SCR_LIVE,
+    SCR_LIVE_RANGE,
     SCR_OSCOPE,
     SCR_BTN,
 };
@@ -55,6 +57,8 @@ int main(void)
         {
         case SCR_MAIN_MENU:
             static int menu_selection = 0;
+            int button_pressed = 0,
+                button_timer = 0;
 
             text_set_line_height(11);
             for (;;) {
@@ -72,6 +76,7 @@ int main(void)
                     "Range test (5 samples)",
                     "Display last range result",
                     "Live range display",
+                    "Live benchmark",
                     "Oscilloscope display",
                     "Button display",
                     "Help",
@@ -119,22 +124,21 @@ int main(void)
                         current_screen = SCR_LIVE;
                         break;
                     case 5:
-                        current_screen = SCR_OSCOPE;
+                        current_screen = SCR_LIVE_RANGE;
                         break;
                     case 6:
-                        current_screen = SCR_BTN;
+                        current_screen = SCR_OSCOPE;
                         break;
                     case 7:
-                        current_screen = SCR_HELP;
+                        current_screen = SCR_BTN;
                         break;
                     case 8:
+                        current_screen = SCR_HELP;
+                        break;
+                    case 9:
                         current_screen = SCR_ABOUT;
                         break;
                     }
-                }
-
-                if (current_screen != SCR_MAIN_MENU) {
-                    break;
                 }
 
                 if (cdata.c[0].up) {
@@ -144,6 +148,36 @@ int main(void)
                     menu_selection++;
                     if (menu_selection >= menu_options) menu_selection = 0;
                 }
+
+                if (button_pressed == 0) {
+                    if (cdata.c[0].A || cdata.c[0].B
+                        || cdata.c[0].C_down || cdata.c[0].C_left
+                        || cdata.c[0].C_right || cdata.c[0].C_up
+                        || cdata.c[0].L || cdata.c[0].R || cdata.c[0].Z
+                        || cdata.c[0].down || cdata.c[0].left
+                        || cdata.c[0].right || cdata.c[0].start || cdata.c[0].up) {
+
+                        button_pressed = 1;
+                    } else {
+                        cdata = get_keys_pressed();
+                        if (cdata.c[0].x > 50 || cdata.c[0].x < -50 || cdata.c[0].y > 50 || cdata.c[0].y < -50) {
+                            button_timer += 1;
+                        } else {
+                            button_timer = 0;
+                        }
+
+                        if (button_timer > 30) {
+                            current_screen = SCR_LIVE_RANGE;
+                            button_timer = 0;
+                            button_pressed = 0;
+                        }
+                    }
+                }
+
+                if (current_screen != SCR_MAIN_MENU) {
+                    break;
+                }
+
             }
             break;
         case SCR_ABOUT:
@@ -160,7 +194,7 @@ int main(void)
 
                 text_set_font(FONT_MEDIUM);
 
-                text_draw_wordwrap(ctx, 32, 44, 320-64, 
+                text_draw_wordwrap(ctx, 32, 44, 320-64,
                     "mimi controller test ROM by wermi\n"
                     "version " ROM_VERSION ", built on " __DATE__ "\n\n"
                     REPO_URL "\n\n"
@@ -175,7 +209,7 @@ int main(void)
 
                 controller_scan();
                 struct controller_data cdata = get_keys_down_filtered();
-                
+
                 if (cdata.c[0].A || cdata.c[0].B || cdata.c[0].start) {
                     current_screen = SCR_MAIN_MENU;
                     break;
@@ -215,7 +249,7 @@ int main(void)
 
                 text_set_font(FONT_MEDIUM);
 
-                switch (page) 
+                switch (page)
                 {
                 case 0:
                     text_set_font(FONT_MEDIUM);
@@ -243,7 +277,7 @@ int main(void)
                     break;
                 case 1:
                     text_set_font(FONT_BOLD);
-                    text_draw_wordwrap(ctx, 32, 44 + (11 * 0), 320-64, 
+                    text_draw_wordwrap(ctx, 32, 44 + (11 * 0), 320-64,
                         "On the live range testing screen:\n");
                     text_set_font(FONT_MEDIUM);
                     text_draw_wordwrap(ctx, 32, 44 + (11 * 1), 320-64,
@@ -253,7 +287,7 @@ int main(void)
                         "* L/R, D-Pad Left/Right - cycle example ranges\n"
                         "* Start - return to main menu\n");
                     text_set_font(FONT_BOLD);
-                    text_draw_wordwrap(ctx, 32, 44 + (11 * 7), 320-64, 
+                    text_draw_wordwrap(ctx, 32, 44 + (11 * 7), 320-64,
                         "On the oscilloscope screen:\n");
                     text_set_font(FONT_MEDIUM);
                     text_draw_wordwrap(ctx, 32, 44 + (11 * 8), 320-64,
@@ -306,7 +340,7 @@ int main(void)
                     );
                     break;
                 case 5:
-                    text_draw_wordwrap(ctx, 32, 44, 320-64, 
+                    text_draw_wordwrap(ctx, 32, 44, 320-64,
                         "Displays live X/Y values on a graph using ideal "
                         "OEM or Hori values as an overlay. Displays "
                         "the most recent 1024 values in blue, and the "
@@ -314,7 +348,7 @@ int main(void)
                     );
                     break;
                 case 6:
-                    text_draw_wordwrap(ctx, 32, 44, 320-64, 
+                    text_draw_wordwrap(ctx, 32, 44, 320-64,
                         "Displays live X/Y values on an oscilloscope-style "
                         "display. Useful for identifying skips and "
                         "snapback issues.\n\n"
@@ -327,7 +361,7 @@ int main(void)
 
                 controller_scan();
                 struct controller_data cdata = get_keys_down_filtered();
-                
+
                 if (cdata.c[0].A || cdata.c[0].B || cdata.c[0].start) {
                     current_screen = SCR_MAIN_MENU;
                     break;
@@ -340,7 +374,9 @@ int main(void)
                 if (cdata.c[0].left || cdata.c[0].L) {
                     if (page > 0) page--;
                 }
+
             }
+
             break;
         case SCR_RANGE_TEST:
             if (is_unsaved_result) {
@@ -385,6 +421,10 @@ int main(void)
             break;
         case SCR_LIVE:
             display_live_ranges();
+            current_screen = SCR_MAIN_MENU;
+            break;
+        case SCR_LIVE_RANGE:
+            display_live_benchmark();
             current_screen = SCR_MAIN_MENU;
             break;
         case SCR_OSCOPE:

@@ -266,7 +266,7 @@ void print_stick_angles(display_context_t ctx, struct StickAngles a)
     graphics_set_color(COLOR_FOREGROUND, 0);
 
     text_set_font(FONT_MEDIUM);
-    text_draw(ctx, 270, y, buf, ALIGN_LEFT);
+    text_draw(ctx, 256, y, buf, ALIGN_LEFT);
 
     text_set_font(FONT_BOLD);
     int cardinals[] = {a.u.y, -a.d.y, -a.l.x, a.r.x};
@@ -275,7 +275,7 @@ void print_stick_angles(display_context_t ctx, struct StickAngles a)
         snprintf(buf, sizeof(buf), "%3d", cardinals[i]);
         uint32_t c = get_range_color_cardinal(cardinals[i]);
         graphics_set_color(c, 0);
-        text_draw(ctx, 263, y, buf, ALIGN_RIGHT);
+        text_draw(ctx, 249, y, buf, ALIGN_RIGHT);
         y += 10;
     }
 
@@ -292,7 +292,7 @@ void print_stick_angles(display_context_t ctx, struct StickAngles a)
         snprintf(buf, sizeof(buf), "%3d\n%3d", diagonals[i], diagonals[i+1]);
         uint32_t c = get_range_color_diagonal(smax(0, diagonals[i]), smax(0, diagonals[i+1]));
         graphics_set_color(c, 0);
-        text_draw(ctx, 263, y, buf, ALIGN_RIGHT);
+        text_draw(ctx, 249, y, buf, ALIGN_RIGHT);
         y += 30;
     }
 
@@ -310,9 +310,46 @@ void print_stick_angles(display_context_t ctx, struct StickAngles a)
         snprintf(buf, sizeof(buf), "%2.1f" SYMBOL_DEGREES, angles[i]);
         uint32_t c = get_angle_color(angles[i]);
         graphics_set_color(c, 0);
-        text_draw(ctx, 270, y, buf, ALIGN_LEFT);
+        text_draw(ctx, 256, y, buf, ALIGN_LEFT);
         y += 30;
     }
+
+    print_cardinal_offsets(ctx, a);
+}
+
+char get_sign(int val) {
+    char sign = ' ';
+    if (val > 0) {
+        sign = '+';
+    } else if (val < 0) {
+        sign = '-';
+    }
+    return sign;
+}
+
+void print_cardinal_offsets(display_context_t ctx, struct StickAngles a) {
+    int line_height = 10,
+        y_offset = 15;
+
+    struct Vec2 *v = (struct Vec2*)&a;
+
+    text_set_font(FONT_MEDIUM);
+    graphics_set_color(graphics_make_color(192, 192, 192, 255), 0);
+    char buf[128];
+
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[0].x), abs(v[0].x));
+    text_draw(ctx, 300, y_offset + (0 * line_height), buf, ALIGN_RIGHT);
+
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[2].y), abs(v[2].y));
+    text_draw(ctx, 300, y_offset + (1 * line_height), buf, ALIGN_RIGHT);
+
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[4].x), abs(v[4].x));
+    text_draw(ctx, 300, y_offset + (2 * line_height), buf, ALIGN_RIGHT);
+
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[6].y), abs(v[6].y));
+    text_draw(ctx, 300, y_offset + (3 * line_height), buf, ALIGN_RIGHT);
+
+    graphics_set_color(COLOR_FOREGROUND, 0);
 }
 
 void test_angles(struct StickAngles *a, int testnum)
@@ -652,7 +689,7 @@ void print_benchmark_grade(display_context_t ctx, struct StickAngles a, int leni
 
     if (cardinal_range + cardinal_delta + cardinal_axes > 0) {
         cardinal_tests = 1;
-    } 
+    }
 
     if (diagonal_delta + diagonal_angles > 0) {
         diagonal_tests = 1;
@@ -777,13 +814,13 @@ void display_angles(struct StickAngles a[], int sample_count)
         char buf[128];
         snprintf(buf, sizeof(buf), "%d", sample_count);
         text_set_font(FONT_BOLD);
-        text_draw(ctx, 263, y, buf, ALIGN_RIGHT);
+        text_draw(ctx, 249, y, buf, ALIGN_RIGHT);
 
         text_set_font(FONT_MEDIUM);
         if (sample_count == 1) {
-            text_draw(ctx, 270, y, "test", ALIGN_LEFT);
+            text_draw(ctx, 256, y, "test", ALIGN_LEFT);
         } else {
-            text_draw(ctx, 270, y, "tests", ALIGN_LEFT);
+            text_draw(ctx, 256, y, "tests", ALIGN_LEFT);
         }
 
         y += 10;
@@ -792,13 +829,12 @@ void display_angles(struct StickAngles a[], int sample_count)
             snprintf(buf, sizeof(buf), "%.2f", sd);
 
             text_set_font(FONT_BOLD);
-            text_draw(ctx, 263, y, buf, ALIGN_RIGHT);
+            text_draw(ctx, 249, y, buf, ALIGN_RIGHT);
 
             text_set_font(FONT_MEDIUM);
-            text_draw(ctx, 270, y, "std dev", ALIGN_LEFT);
+            text_draw(ctx, 256, y, "std dev", ALIGN_LEFT);
         }
 
-        
         if (current_view != VIEW_GRADE && current_view != VIEW_GRADE_LENIENT) {
             if (sample_count == 1) {
                 current_measurement = 1;
