@@ -340,13 +340,13 @@ void print_cardinal_offsets(display_context_t ctx, struct StickAngles a) {
     snprintf(buf, sizeof(buf), "%c%d", get_sign(v[0].x), abs(v[0].x));
     text_draw(ctx, 300, y_offset + (0 * line_height), buf, ALIGN_RIGHT);
 
-    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[2].y), abs(v[2].y));
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[4].x), abs(v[4].x));
     text_draw(ctx, 300, y_offset + (1 * line_height), buf, ALIGN_RIGHT);
 
-    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[4].x), abs(v[4].x));
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[6].y), abs(v[6].y));
     text_draw(ctx, 300, y_offset + (2 * line_height), buf, ALIGN_RIGHT);
 
-    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[6].y), abs(v[6].y));
+    snprintf(buf, sizeof(buf), "%c%d", get_sign(v[2].y), abs(v[2].y));
     text_draw(ctx, 300, y_offset + (3 * line_height), buf, ALIGN_RIGHT);
 
     graphics_set_color(COLOR_FOREGROUND, 0);
